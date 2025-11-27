@@ -32,10 +32,19 @@ def decompress_json(compressed_bytes: bytes) -> Any:
 
     Returns:
         The original JSON object
+
+    Raises:
+        ValueError: If the data is not valid Brotli-compressed data or does not decode to valid JSON
     """
-    decompressed_bytes = brotli.decompress(compressed_bytes)
-    json_str = decompressed_bytes.decode("utf-8")
-    json_obj = json.loads(json_str)
+    try:
+        decompressed_bytes = brotli.decompress(compressed_bytes)
+    except brotli.error as e:
+        raise ValueError("Invalid Brotli-compressed data") from e
+    try:
+        json_str = decompressed_bytes.decode("utf-8")
+        json_obj = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        raise ValueError("Decompressed data is not valid JSON") from e
     return json_obj
 
 
