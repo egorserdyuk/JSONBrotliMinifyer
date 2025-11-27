@@ -28,7 +28,7 @@ pip install -e .
 ## Usage
 
 ```python
-import jsonbrotli
+import jsonbrotliminifyer
 
 # Original JSON data
 data = {
