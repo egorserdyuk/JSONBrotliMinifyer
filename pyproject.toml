@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "jsonbrotliminifyer"
+version = "0.3.0"
+description = "A Python library for compressing and decompressing JSON data using Brotli"
+authors = [
+    {name = "Egor Serdiuk", email = "egor.serduck@gmail.com"},
+]
+dependencies = [
+    "brotli>=1.0.0",
+]
+readme = "README.md"
+requires-python = ">=3.6"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/egorserdyuk/JSONBrotliMinifyer"
+Repository = "https://github.com/egorserdyuk/JSONBrotliMinifyer.git"
