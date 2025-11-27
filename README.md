@@ -20,7 +20,7 @@ pip install jsonbrotliminifyer
 Or install from source:
 
 ```bash
-git clone https://github.com/egorserdyuk/jsonbrotliminifyer.git
+git clone https://github.com/egorserdyuk/JSONBrotliMinifyer.git
 cd jsonbrotliminifyer
 pip install -e .
 ```
@@ -76,6 +76,7 @@ Compresses a JSON-serializable Python object.
   - `json_obj` - Any JSON-serializable Python object
   - `quality` - Compression quality level (0-11), default 11 (best compression)
 - **Returns**: `bytes` - The compressed data
+- **Raises**: `ValueError` - If quality is not between 0 and 11
 
 ### `decompress_json(compressed_bytes)`
 
@@ -83,6 +84,7 @@ Decompresses Brotli-compressed data back to the original JSON object.
 
 - **Parameters**: `compressed_bytes` - The compressed data as bytes
 - **Returns**: The original Python object
+- **Raises**: `ValueError` - If the data is not valid Brotli-compressed data or does not decode to valid JSON
 
 ### `compress_json_file(input_path, output_path, quality=11)`
 
@@ -92,6 +94,7 @@ Compresses a JSON file using Brotli compression.
   - `input_path` - Path to the input JSON file
   - `output_path` - Path to the output compressed file
   - `quality` - Compression quality level (0-11), default 11 (best compression)
+- **Raises**: `ValueError` - If the input file does not exist, is not readable, contains invalid JSON, or if writing to the output file fails
 
 ### `decompress_json_file(input_path, output_path)`
 
@@ -100,9 +103,11 @@ Decompresses a Brotli-compressed file back to a JSON file.
 - **Parameters**:
   - `input_path` - Path to the input compressed file
   - `output_path` - Path to the output JSON file
+- **Raises**: `ValueError` - If the input file does not exist, is not readable, or if writing to the output file fails
 
 ## Dependencies
 
+- Python >= 3.9
 - `brotli` - Python bindings for the Brotli compression library
 
 ## Testing
@@ -111,6 +116,12 @@ Run the tests using unittest:
 
 ```bash
 python -m unittest tests.test_jsonbrotliminifyer
+```
+
+Or using pytest
+
+```bash
+pytest tests/test_jsonbrotliminifyer.py
 ```
 
 ## License
