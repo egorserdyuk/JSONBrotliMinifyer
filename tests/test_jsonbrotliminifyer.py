@@ -82,6 +82,32 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
             jsonbrotliminifyer.decompress_json(compressed)
         self.assertIn("Decompressed data is not valid JSON", str(cm.exception))
 
+    def test_compress_json_file_input_not_found(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "nonexistent.json")
+            output_file = os.path.join(temp_dir, "output.br")
+            with self.assertRaises(ValueError) as cm:
+                jsonbrotliminifyer.compress_json_file(input_file, output_file)
+            self.assertIn("Input file does not exist", str(cm.exception))
+
+    def test_compress_json_file_invalid_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "invalid.json")
+            output_file = os.path.join(temp_dir, "output.br")
+            with open(input_file, "w") as f:
+                f.write("not valid json")
+            with self.assertRaises(ValueError) as cm:
+                jsonbrotliminifyer.compress_json_file(input_file, output_file)
+            self.assertIn("Input file contains invalid JSON", str(cm.exception))
+
+    def test_decompress_json_file_input_not_found(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "nonexistent.br")
+            output_file = os.path.join(temp_dir, "output.json")
+            with self.assertRaises(ValueError) as cm:
+                jsonbrotliminifyer.decompress_json_file(input_file, output_file)
+            self.assertIn("Input file does not exist", str(cm.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

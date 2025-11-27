@@ -58,12 +58,32 @@ def compress_json_file(
         input_path: Path to the input JSON file (str or Path)
         output_path: Path to the output compressed file (str or Path)
         quality: Compression quality level (0-11), default 11 (best compression)
+
+    Raises:
+        ValueError: If the input file does not exist, is not readable, contains invalid JSON,
+                   or if writing to the output file fails
     """
-    with open(input_path, "r", encoding="utf-8") as f:
-        json_obj = json.load(f)
+    try:
+        with open(input_path, "r", encoding="utf-8") as f:
+            json_obj = json.load(f)
+    except FileNotFoundError:
+        raise ValueError(f"Input file does not exist: {input_path}")
+    except PermissionError:
+        raise ValueError(f"Permission denied reading input file: {input_path}")
+    except OSError as e:
+        raise ValueError(f"Error reading input file: {input_path} - {e}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Input file contains invalid JSON: {input_path} - {e}")
+
     compressed = compress_json(json_obj, quality=quality)
-    with open(output_path, "wb") as f:
-        f.write(compressed)
+
+    try:
+        with open(output_path, "wb") as f:
+            f.write(compressed)
+    except PermissionError:
+        raise ValueError(f"Permission denied writing to output file: {output_path}")
+    except OSError as e:
+        raise ValueError(f"Error writing to output file: {output_path} - {e}")
 
 
 def decompress_json_file(
@@ -75,9 +95,26 @@ def decompress_json_file(
     Args:
         input_path: Path to the input compressed file (str or Path)
         output_path: Path to the output JSON file (str or Path)
+
+    Raises:
+        ValueError: If the input file does not exist, is not readable, or if writing to the output file fails
     """
-    with open(input_path, "rb") as f:
-        compressed_bytes = f.read()
+    try:
+        with open(input_path, "rb") as f:
+            compressed_bytes = f.read()
+    except FileNotFoundError:
+        raise ValueError(f"Input file does not exist: {input_path}")
+    except PermissionError:
+        raise ValueError(f"Permission denied reading input file: {input_path}")
+    except OSError as e:
+        raise ValueError(f"Error reading input file: {input_path} - {e}")
+
     json_obj = decompress_json(compressed_bytes)
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(json_obj, f, indent=2)
+
+    try:
+        with open(output_path, "w", encoding="utf-8") as f:
+            json.dump(json_obj, f, indent=2)
+    except PermissionError:
+        raise ValueError(f"Permission denied writing to output file: {output_path}")
+    except OSError as e:
+        raise ValueError(f"Error writing to output file: {output_path} - {e}")
