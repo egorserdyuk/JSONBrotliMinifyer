@@ -1,7 +1,7 @@
 # JSONBrotliMinifyer
 
 A Python library for compressing and decompressing JSON data using the Brotli compression algorithm.
- 
+
 ## Features
 
 - Compress JSON-serializable Python objects (dicts, lists, strings, numbers, etc.) into compact byte representations.
