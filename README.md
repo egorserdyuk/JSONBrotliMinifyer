@@ -6,6 +6,7 @@ A Python library for compressing and decompressing JSON data using the Brotli co
 
 - Compress JSON-serializable Python objects (dicts, lists, strings, numbers, etc.) into compact byte representations.
 - Decompress Brotli-compressed data back to the original JSON objects.
+- Compress and decompress JSON files directly.
 - Efficient lossless compression suitable for data storage and transmission.
 
 ## Installation
@@ -46,6 +47,18 @@ decompressed = jsonbrotliminifyer.decompress_json(compressed)
 print(decompressed)  # Should match the original data
 ```
 
+### File Compression
+
+```python
+import jsonbrotliminifyer
+
+# Compress a JSON file
+jsonbrotliminifyer.compress_json_file('input.json', 'output.br')
+
+# Decompress a compressed file back to JSON
+jsonbrotliminifyer.decompress_json_file('output.br', 'restored.json')
+```
+
 ## API
 
 ### `compress_json(json_obj)`
@@ -61,6 +74,22 @@ Decompresses Brotli-compressed data back to the original JSON object.
 
 - **Parameters**: `compressed_bytes` - The compressed data as bytes
 - **Returns**: The original Python object
+
+### `compress_json_file(input_path, output_path)`
+
+Compresses a JSON file using Brotli compression.
+
+- **Parameters**:
+  - `input_path` - Path to the input JSON file
+  - `output_path` - Path to the output compressed file
+
+### `decompress_json_file(input_path, output_path)`
+
+Decompresses a Brotli-compressed file back to a JSON file.
+
+- **Parameters**:
+  - `input_path` - Path to the input compressed file
+  - `output_path` - Path to the output JSON file
 
 ## Dependencies
 

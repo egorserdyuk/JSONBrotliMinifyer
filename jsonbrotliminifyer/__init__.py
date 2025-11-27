@@ -32,3 +32,33 @@ def decompress_json(compressed_bytes):
     json_str = decompressed_bytes.decode('utf-8')
     json_obj = json.loads(json_str)
     return json_obj
+
+
+def compress_json_file(input_path, output_path):
+    """
+    Compress a JSON file using Brotli compression.
+
+    Args:
+        input_path: Path to the input JSON file
+        output_path: Path to the output compressed file
+    """
+    with open(input_path, 'r', encoding='utf-8') as f:
+        json_obj = json.load(f)
+    compressed = compress_json(json_obj)
+    with open(output_path, 'wb') as f:
+        f.write(compressed)
+
+
+def decompress_json_file(input_path, output_path):
+    """
+    Decompress a Brotli-compressed file back to a JSON file.
+
+    Args:
+        input_path: Path to the input compressed file
+        output_path: Path to the output JSON file
+    """
+    with open(input_path, 'rb') as f:
+        compressed_bytes = f.read()
+    json_obj = decompress_json(compressed_bytes)
+    with open(output_path, 'w', encoding='utf-8') as f:
+        json.dump(json_obj, f, indent=2)
