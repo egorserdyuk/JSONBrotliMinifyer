@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "jsonbrotliminifyer"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Python library for compressing and decompressing JSON data using Brotli"
 authors = [
     {name = "Egor Serdiuk", email = "egor.serduck@gmail.com"},
