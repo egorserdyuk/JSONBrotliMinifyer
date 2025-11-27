@@ -20,7 +20,7 @@ Or install from source:
 
 ```bash
 git clone https://github.com/egorserdyuk/jsonbrotliminifyer.git
-cd jsonbrotli
+cd jsonbrotliminifyer
 pip install -e .
 ```
 
