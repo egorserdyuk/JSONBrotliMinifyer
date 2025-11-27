@@ -21,7 +21,7 @@ Or install from source:
 
 ```bash
 git clone https://github.com/egorserdyuk/JSONBrotliMinifyer.git
-cd jsonbrotliminifyer
+cd JSONBrotliMinifyer
 pip install -e .
 ```
 
@@ -64,6 +64,33 @@ jsonbrotliminifyer.compress_json_file('input.json', 'output_fast.br', quality=0)
 
 # Decompress a compressed file back to JSON
 jsonbrotliminifyer.decompress_json_file('output.br', 'restored.json')
+```
+
+### Command Line Interface
+
+After installation, you can use the `jsonbrotlim` command to compress and decompress JSON data from the command line.
+
+#### Compress JSON data
+
+```bash
+# Compress a JSON file
+jsonbrotlim compress --input-file input.json --output-file output.br
+
+# Compress with custom quality (0-11)
+jsonbrotlim compress --input-file input.json --output-file output.br --quality 0
+
+# Compress JSON from stdin
+echo '{"name": "test"}' | jsonbrotlim compress > output.br
+```
+
+#### Decompress JSON data
+
+```bash
+# Decompress a compressed file
+jsonbrotlim decompress --input-file output.br --output-file restored.json
+
+# Decompress from stdin
+cat output.br | jsonbrotlim decompress
 ```
 
 ## API

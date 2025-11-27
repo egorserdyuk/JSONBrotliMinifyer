@@ -4,6 +4,8 @@ import tempfile
 import os
 import json
 import brotli
+import subprocess
+import sys
 
 
 class TestJsonBrotliMinifyer(unittest.TestCase):
@@ -107,6 +109,140 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
             with self.assertRaises(ValueError) as cm:
                 jsonbrotliminifyer.decompress_json_file(input_file, output_file)
             self.assertIn("Input file does not exist", str(cm.exception))
+
+
+class TestCli(unittest.TestCase):
+    def test_compress_stdin(self) -> None:
+        data = {"test": "data"}
+        input_json = json.dumps(data).encode()
+        result = subprocess.run(
+            [sys.executable, "-m", "jsonbrotliminifyer", "compress"],
+            input=input_json,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0)
+        compressed = result.stdout
+        decompressed = jsonbrotliminifyer.decompress_json(compressed)
+        self.assertEqual(decompressed, data)
+
+    def test_compress_files(self) -> None:
+        data = {"file": "test"}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "input.json")
+            output_file = os.path.join(temp_dir, "output.br")
+            with open(input_file, "w") as f:
+                json.dump(data, f)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "jsonbrotliminifyer",
+                    "compress",
+                    "-i",
+                    input_file,
+                    "-o",
+                    output_file,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("Compressed", result.stdout)
+            with open(output_file, "rb") as f:
+                compressed = f.read()
+            decompressed = jsonbrotliminifyer.decompress_json(compressed)
+            self.assertEqual(decompressed, data)
+
+    def test_decompress_stdin(self) -> None:
+        data = {"stdin": "decompress"}
+        compressed = jsonbrotliminifyer.compress_json(data)
+        result = subprocess.run(
+            [sys.executable, "-m", "jsonbrotliminifyer", "decompress"],
+            input=compressed,
+            capture_output=True,
+        )
+        self.assertEqual(result.returncode, 0)
+        output = result.stdout.decode()
+        decompressed = json.loads(output)
+        self.assertEqual(decompressed, data)
+
+    def test_decompress_files(self) -> None:
+        data = {"file": "decompress"}
+        compressed = jsonbrotliminifyer.compress_json(data)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "input.br")
+            output_file = os.path.join(temp_dir, "output.json")
+            with open(input_file, "wb") as f:
+                f.write(compressed)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "jsonbrotliminifyer",
+                    "decompress",
+                    "-i",
+                    input_file,
+                    "-o",
+                    output_file,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(result.returncode, 0)
+            self.assertIn("Decompressed", result.stdout)
+            with open(output_file, "r") as f:
+                decompressed = json.load(f)
+            self.assertEqual(decompressed, data)
+
+    def test_compress_invalid_quality(self) -> None:
+        data = {"test": "quality"}
+        input_json = json.dumps(data)
+        result = subprocess.run(
+            [sys.executable, "-m", "jsonbrotliminifyer", "compress", "-q", "12"],
+            input=input_json,
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("Error", result.stderr)
+
+    def test_compress_missing_output_file(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "input.json")
+            with open(input_file, "w") as f:
+                json.dump({"test": "missing"}, f)
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    "-m",
+                    "jsonbrotliminifyer",
+                    "compress",
+                    "-i",
+                    input_file,
+                ],
+                capture_output=True,
+                text=True,
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("required", result.stderr)
+
+    def test_help(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "jsonbrotliminifyer", "--help"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("JSON Brotli compression", result.stdout)
+
+    def test_invalid_command(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-m", "jsonbrotliminifyer", "invalid"],
+            capture_output=True,
+            text=True,
+        )
+        self.assertNotEqual(result.returncode, 0)
+        # For invalid subcommand, argparse shows help or error
 
 
 if __name__ == "__main__":
