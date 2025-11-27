@@ -31,6 +31,26 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
         decompressed = jsonbrotliminifyer.decompress_json(compressed)
         self.assertEqual(original, decompressed)
 
+    def test_compress_quality_levels(self):
+        # Large data to see compression difference
+        original = {"data": "x" * 1000}
+        compressed_low = jsonbrotliminifyer.compress_json(original, quality=0)
+        compressed_high = jsonbrotliminifyer.compress_json(
+            original, quality=11)
+        # Higher quality should generally give smaller or equal size
+        self.assertLessEqual(len(compressed_high), len(compressed_low))
+        # Both should decompress correctly
+        self.assertEqual(jsonbrotliminifyer.decompress_json(
+            compressed_low), original)
+        self.assertEqual(jsonbrotliminifyer.decompress_json(
+            compressed_high), original)
+
+    def test_compress_quality_invalid(self):
+        with self.assertRaises(ValueError):
+            jsonbrotliminifyer.compress_json({"test": "data"}, quality=12)
+        with self.assertRaises(ValueError):
+            jsonbrotliminifyer.compress_json({"test": "data"}, quality=-1)
+
     def test_compress_decompress_file(self):
         original = {"test": "data", "array": [1, 2, 3]}
         with tempfile.TemporaryDirectory() as temp_dir:

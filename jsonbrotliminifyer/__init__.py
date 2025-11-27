@@ -2,19 +2,22 @@ import json
 import brotli
 
 
-def compress_json(json_obj):
+def compress_json(json_obj, quality=11):
     """
     Compress a JSON object using Brotli compression.
 
     Args:
         json_obj: A JSON-serializable Python object (dict, list, etc.)
+        quality: Compression quality level (0-11), default 11 (best compression)
 
     Returns:
         bytes: The compressed data as bytes
     """
+    if not (0 <= quality <= 11):
+        raise ValueError("Quality must be between 0 and 11")
     json_str = json.dumps(json_obj)
     json_bytes = json_str.encode('utf-8')
-    compressed = brotli.compress(json_bytes)
+    compressed = brotli.compress(json_bytes, quality=quality)
     return compressed
 
 
@@ -34,17 +37,18 @@ def decompress_json(compressed_bytes):
     return json_obj
 
 
-def compress_json_file(input_path, output_path):
+def compress_json_file(input_path, output_path, quality=11):
     """
     Compress a JSON file using Brotli compression.
 
     Args:
         input_path: Path to the input JSON file
         output_path: Path to the output compressed file
+        quality: Compression quality level (0-11), default 11 (best compression)
     """
     with open(input_path, 'r', encoding='utf-8') as f:
         json_obj = json.load(f)
-    compressed = compress_json(json_obj)
+    compressed = compress_json(json_obj, quality=quality)
     with open(output_path, 'wb') as f:
         f.write(compressed)
 
