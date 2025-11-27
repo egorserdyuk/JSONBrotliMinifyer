@@ -1,2 +1,4 @@
 brotli==1.2.0
 pytest
+mypy
+pre-commit
