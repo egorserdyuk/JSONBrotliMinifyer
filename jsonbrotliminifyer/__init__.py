@@ -3,6 +3,7 @@ import brotli
 import os
 import errno
 import shutil
+import logging
 from pathlib import Path
 from typing import Any, Union, cast
 
@@ -93,10 +94,17 @@ def compress_json_file(
     except OSError as e:
         if e.errno == errno.EXDEV:
             shutil.copy2(temp_path, output_path_str)
-            os.remove(temp_path)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
         else:
             if os.path.exists(temp_path):
-                os.remove(temp_path)
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
             raise ValueError(f"Error writing to output file: {output_path} - {e}")
 
 
@@ -138,8 +146,19 @@ def decompress_json_file(
     except OSError as e:
         if e.errno == errno.EXDEV:
             shutil.copy2(temp_path, output_path_str)
-            os.remove(temp_path)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception as cleanup_error:
+                    logging.warning(
+                        f"Failed to remove temp file {temp_path}: {cleanup_error}"
+                    )
         else:
             if os.path.exists(temp_path):
-                os.remove(temp_path)
+                try:
+                    os.remove(temp_path)
+                except Exception as cleanup_error:
+                    logging.warning(
+                        f"Failed to remove temp file {temp_path}: {cleanup_error}"
+                    )
             raise ValueError(f"Error writing to output file: {output_path} - {e}")
