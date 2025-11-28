@@ -2,6 +2,8 @@ import json
 import brotli
 import os
 import tempfile
+import errno
+import shutil
 from pathlib import Path
 from typing import Any, Union, cast
 
@@ -91,7 +93,11 @@ def compress_json_file(
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
-        raise ValueError(f"Error writing to output file: {output_path} - {e}")
+        if e.errno == errno.EXDEV:
+            shutil.copy2(temp_name, output_path_str)
+            os.remove(temp_name)
+        else:
+            raise ValueError(f"Error writing to output file: {output_path} - {e}")
 
 
 def decompress_json_file(
@@ -131,4 +137,8 @@ def decompress_json_file(
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
-        raise ValueError(f"Error writing to output file: {output_path} - {e}")
+        if e.errno == errno.EXDEV:
+            shutil.copy2(temp_name, output_path_str)
+            os.remove(temp_name)
+        else:
+            raise ValueError(f"Error writing to output file: {output_path} - {e}")
