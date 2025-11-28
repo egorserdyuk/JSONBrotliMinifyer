@@ -6,7 +6,7 @@ A Python library for compressing and decompressing JSON data using the Brotli co
 
 - Compress JSON-serializable Python objects (dicts, lists, strings, numbers, etc.) into compact byte representations.
 - Decompress Brotli-compressed data back to the original JSON objects.
-- Compress and decompress JSON files directly.
+- Compress and decompress JSON files directly with atomic write operations to prevent data corruption.
 - Efficient lossless compression suitable for data storage and transmission.
 
 ## Installation
