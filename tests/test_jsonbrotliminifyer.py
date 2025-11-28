@@ -111,7 +111,7 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
                 jsonbrotliminifyer.decompress_json_file(input_file, output_file)
             self.assertIn("Input file does not exist", str(cm.exception))
 
-    @patch("jsonbrotliminifyer.os.rename")
+    @patch("jsonbrotliminifyer.os.replace")
     def test_compress_json_file_atomic_write_failure(self, mock_rename: Mock) -> None:
         """Test that if atomic rename fails, output file is not created."""
         mock_rename.side_effect = OSError("Rename failed")
@@ -132,7 +132,10 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
             # Output file should not exist
             self.assertFalse(os.path.exists(output_file))
 
-    @patch("jsonbrotliminifyer.os.rename")
+            # No temporary files should remain
+            self.assertFalse(any(f.endswith(".tmp") for f in os.listdir(temp_dir)))
+
+    @patch("jsonbrotliminifyer.os.replace")
     def test_decompress_json_file_atomic_write_failure(self, mock_rename: Mock) -> None:
         """Test that if atomic rename fails, output file is not created."""
         mock_rename.side_effect = OSError("Rename failed")
@@ -153,6 +156,9 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
 
             # Output file should not exist
             self.assertFalse(os.path.exists(output_file))
+
+            # No temporary files should remain
+            self.assertFalse(any(f.endswith(".tmp") for f in os.listdir(temp_dir)))
 
 
 class TestCli(unittest.TestCase):

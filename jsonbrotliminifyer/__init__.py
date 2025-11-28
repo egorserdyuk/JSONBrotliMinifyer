@@ -1,9 +1,9 @@
 import json
 import brotli
 import os
-import tempfile
 import errno
 import shutil
+import logging
 from pathlib import Path
 from typing import Any, Union, cast
 
@@ -82,23 +82,33 @@ def compress_json_file(
     compressed = compress_json(json_obj, quality=quality)
 
     output_path_str = str(output_path)
+    temp_path = output_path_str + ".tmp"
     try:
-        temp_dir = os.path.dirname(output_path_str) or "."
-        with tempfile.NamedTemporaryFile(
-            mode="wb", dir=temp_dir, delete=False
-        ) as temp_f:
+        with open(temp_path, "wb") as temp_f:
             temp_f.write(compressed)
-            temp_name = temp_f.name
-        if os.path.islink(output_path_str):
-            raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
-        os.rename(temp_name, output_path_str)
+        try:
+            fd = os.open(output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            os.close(fd)
+        except OSError as e:
+            if e.errno == errno.ELOOP:
+                raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
+        os.replace(temp_path, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
         if e.errno == errno.EXDEV:
-            shutil.copy2(temp_name, output_path_str)
-            os.remove(temp_name)
+            shutil.copy2(temp_path, output_path_str)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
         else:
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception:
+                    pass
             raise ValueError(f"Error writing to output file: {output_path} - {e}")
 
 
@@ -128,21 +138,35 @@ def decompress_json_file(
     json_obj = decompress_json(compressed_bytes)
 
     output_path_str = str(output_path)
+    temp_path = output_path_str + ".tmp"
     try:
-        temp_dir = os.path.dirname(output_path_str) or "."
-        with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", dir=temp_dir, delete=False
-        ) as temp_f:
+        with open(temp_path, "w", encoding="utf-8") as temp_f:
             json.dump(json_obj, temp_f, indent=2)
-            temp_name = temp_f.name
-        if os.path.islink(output_path_str):
-            raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
-        os.rename(temp_name, output_path_str)
+        try:
+            fd = os.open(output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            os.close(fd)
+        except OSError as e:
+            if e.errno == errno.ELOOP:
+                raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
+        os.replace(temp_path, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
         if e.errno == errno.EXDEV:
-            shutil.copy2(temp_name, output_path_str)
-            os.remove(temp_name)
+            shutil.copy2(temp_path, output_path_str)
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception as cleanup_error:
+                    logging.warning(
+                        f"Failed to remove temp file {temp_path}: {cleanup_error}"
+                    )
         else:
+            if os.path.exists(temp_path):
+                try:
+                    os.remove(temp_path)
+                except Exception as cleanup_error:
+                    logging.warning(
+                        f"Failed to remove temp file {temp_path}: {cleanup_error}"
+                    )
             raise ValueError(f"Error writing to output file: {output_path} - {e}")
