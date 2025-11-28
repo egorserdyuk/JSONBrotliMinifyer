@@ -6,6 +6,7 @@ import json
 import brotli
 import subprocess
 import sys
+from unittest.mock import patch, Mock
 
 
 class TestJsonBrotliMinifyer(unittest.TestCase):
@@ -109,6 +110,49 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
             with self.assertRaises(ValueError) as cm:
                 jsonbrotliminifyer.decompress_json_file(input_file, output_file)
             self.assertIn("Input file does not exist", str(cm.exception))
+
+    @patch("jsonbrotliminifyer.os.rename")
+    def test_compress_json_file_atomic_write_failure(self, mock_rename: Mock) -> None:
+        """Test that if atomic rename fails, output file is not created."""
+        mock_rename.side_effect = OSError("Rename failed")
+        original = {"test": "data"}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "input.json")
+            output_file = os.path.join(temp_dir, "output.br")
+
+            # Write input file
+            with open(input_file, "w") as f:
+                json.dump(original, f)
+
+            # Attempt compression, should fail on rename
+            with self.assertRaises(ValueError) as cm:
+                jsonbrotliminifyer.compress_json_file(input_file, output_file)
+            self.assertIn("Error writing to output file", str(cm.exception))
+
+            # Output file should not exist
+            self.assertFalse(os.path.exists(output_file))
+
+    @patch("jsonbrotliminifyer.os.rename")
+    def test_decompress_json_file_atomic_write_failure(self, mock_rename: Mock) -> None:
+        """Test that if atomic rename fails, output file is not created."""
+        mock_rename.side_effect = OSError("Rename failed")
+        data = {"test": "data"}
+        compressed = jsonbrotliminifyer.compress_json(data)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "input.br")
+            output_file = os.path.join(temp_dir, "output.json")
+
+            # Write compressed file
+            with open(input_file, "wb") as f:
+                f.write(compressed)
+
+            # Attempt decompression, should fail on rename
+            with self.assertRaises(ValueError) as cm:
+                jsonbrotliminifyer.decompress_json_file(input_file, output_file)
+            self.assertIn("Error writing to output file", str(cm.exception))
+
+            # Output file should not exist
+            self.assertFalse(os.path.exists(output_file))
 
 
 class TestCli(unittest.TestCase):

@@ -1,5 +1,7 @@
 import json
 import brotli
+import os
+import tempfile
 from pathlib import Path
 from typing import Any, Union, cast
 
@@ -77,9 +79,15 @@ def compress_json_file(
 
     compressed = compress_json(json_obj, quality=quality)
 
+    output_path_str = str(output_path)
     try:
-        with open(output_path, "wb") as f:
-            f.write(compressed)
+        temp_dir = os.path.dirname(output_path_str) or "."
+        with tempfile.NamedTemporaryFile(
+            mode="wb", dir=temp_dir, delete=False
+        ) as temp_f:
+            temp_f.write(compressed)
+            temp_name = temp_f.name
+        os.rename(temp_name, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
@@ -111,9 +119,15 @@ def decompress_json_file(
 
     json_obj = decompress_json(compressed_bytes)
 
+    output_path_str = str(output_path)
     try:
-        with open(output_path, "w", encoding="utf-8") as f:
-            json.dump(json_obj, f, indent=2)
+        temp_dir = os.path.dirname(output_path_str) or "."
+        with tempfile.NamedTemporaryFile(
+            mode="w", encoding="utf-8", dir=temp_dir, delete=False
+        ) as temp_f:
+            json.dump(json_obj, temp_f, indent=2)
+            temp_name = temp_f.name
+        os.rename(temp_name, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
