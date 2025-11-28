@@ -86,8 +86,12 @@ def compress_json_file(
     try:
         with open(temp_path, "wb") as temp_f:
             temp_f.write(compressed)
-        if os.path.islink(output_path_str):
-            raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
+        try:
+            fd = os.open(output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            os.close(fd)
+        except OSError as e:
+            if e.errno == errno.ELOOP:
+                raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
         os.replace(temp_path, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
@@ -138,8 +142,12 @@ def decompress_json_file(
     try:
         with open(temp_path, "w", encoding="utf-8") as temp_f:
             json.dump(json_obj, temp_f, indent=2)
-        if os.path.islink(output_path_str):
-            raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
+        try:
+            fd = os.open(output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+            os.close(fd)
+        except OSError as e:
+            if e.errno == errno.ELOOP:
+                raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
         os.replace(temp_path, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")

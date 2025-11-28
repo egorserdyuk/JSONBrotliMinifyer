@@ -157,9 +157,6 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
             # No temporary files should remain
             self.assertFalse(any(f.endswith(".tmp") for f in os.listdir(temp_dir)))
 
-            # No temporary files should remain
-            self.assertFalse(any(f.endswith(".tmp") for f in os.listdir(temp_dir)))
-
 
 class TestCli(unittest.TestCase):
     def test_compress_stdin(self) -> None:
