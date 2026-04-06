@@ -160,6 +160,96 @@ class TestJsonBrotliMinifyer(unittest.TestCase):
             # No temporary files should remain
             self.assertFalse(any(f.endswith(".tmp") for f in os.listdir(temp_dir)))
 
+    def test_compress_json_files(self) -> None:
+        # Test batch compression
+        originals = [{"file1": "data1"}, {"file2": "data2"}, {"file3": "data3"}]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_files = []
+            for i, original in enumerate(originals):
+                input_file = os.path.join(temp_dir, f"input{i}.json")
+                with open(input_file, "w") as f:
+                    json.dump(original, f)
+                input_files.append(input_file)
+
+            output_dir = os.path.join(temp_dir, "outputs")
+
+            # Compress batch
+            results = jsonbrotliminifyer.compress_json_files(input_files, output_dir)
+
+            # Check results
+            self.assertEqual(len(results), len(originals))
+            for result in results:
+                self.assertIsNone(result)  # No errors
+
+            # Verify each file
+            for i, original in enumerate(originals):
+                output_file = os.path.join(output_dir, f"input{i}.br")
+                self.assertTrue(os.path.exists(output_file))
+                with open(output_file, "rb") as f:
+                    compressed = f.read()
+                decompressed = jsonbrotliminifyer.decompress_json(compressed)
+                self.assertEqual(decompressed, original)
+
+    def test_decompress_json_files(self) -> None:
+        # Test batch decompression
+        originals = [{"file1": "data1"}, {"file2": "data2"}]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_files = []
+            for i, original in enumerate(originals):
+                input_file = os.path.join(temp_dir, f"input{i}.br")
+                compressed = jsonbrotliminifyer.compress_json(original)
+                with open(input_file, "wb") as f:
+                    f.write(compressed)
+                input_files.append(input_file)
+
+            output_dir = os.path.join(temp_dir, "outputs")
+
+            # Decompress batch
+            results = jsonbrotliminifyer.decompress_json_files(input_files, output_dir)
+
+            # Check results
+            self.assertEqual(len(results), len(originals))
+            for result in results:
+                self.assertIsNone(result)  # No errors
+
+            # Verify each file
+            for i, original in enumerate(originals):
+                output_file = os.path.join(output_dir, f"input{i}.json")
+                self.assertTrue(os.path.exists(output_file))
+                with open(output_file, "r") as f:
+                    data = json.load(f)
+                self.assertEqual(data, original)
+
+    def test_compress_json_files_duplicate_input(self) -> None:
+        # Test that duplicate input paths raise error
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "input.json")
+            with open(input_file, "w") as f:
+                json.dump({"test": "data"}, f)
+
+            input_files = [input_file, input_file]  # Duplicate input
+            output_dir = os.path.join(temp_dir, "outputs")
+
+            with self.assertRaises(ValueError) as cm:
+                jsonbrotliminifyer.compress_json_files(input_files, output_dir)
+            self.assertIn("Duplicate input paths", str(cm.exception))
+
+    def test_compress_json_files_invalid_workers(self) -> None:
+        # Test invalid max_workers
+        with tempfile.TemporaryDirectory() as temp_dir:
+            input_file = os.path.join(temp_dir, "input.json")
+            with open(input_file, "w") as f:
+                json.dump({"test": "data"}, f)
+
+            input_files = [input_file]
+            output_dir = os.path.join(temp_dir, "outputs")
+
+            with self.assertRaises(ValueError) as cm:
+                jsonbrotliminifyer.compress_json_files(
+                    input_files, output_dir, max_workers=0
+                )
+            self.assertIn("max_workers must be positive", str(cm.exception))
+
 
 class TestCli(unittest.TestCase):
     def test_compress_stdin(self) -> None:
