@@ -5,7 +5,7 @@ import logging
 import tempfile
 import concurrent.futures
 from pathlib import Path
-from typing import Any, Union, cast, List, Tuple, Optional
+from typing import Any, Union, cast, List, Optional, Sequence, Tuple
 
 
 def _validate_path(path: Union[str, Path], base_dir: Optional[str] = None) -> None:
@@ -165,74 +165,114 @@ def decompress_json_file(
 
 
 def compress_json_files(
-    file_pairs: List[Tuple[Union[str, Path], Union[str, Path], int]],
+    input_files: Sequence[Union[str, Path]],
+    output_dir: Union[str, Path],
+    quality: int = 11,
     max_workers: Optional[int] = None,
 ) -> List[Optional[Exception]]:
     """
-    Compress multiple JSON files concurrently using Brotli compression.
+    Compress multiple JSON files to an output directory concurrently.
+
+    Output files will have the same name as input files but with .br extension.
 
     Args:
-        file_pairs: List of tuples containing (input_path, output_path, quality)
-        max_workers: Maximum number of worker processes. If None, uses the number of CPUs.
+        input_files: List of input JSON file paths
+        output_dir: Directory to save compressed files
+        quality: Compression quality level (0-11), default 11
+        max_workers: Maximum number of worker threads. If None, uses a reasonable default.
 
     Returns:
-        List of exceptions for each file pair. None if successful, Exception if failed.
+        List of exceptions for each file. None if successful, Exception if failed.
     """
     if max_workers is not None and max_workers <= 0:
         raise ValueError("max_workers must be positive")
+    # Validate input files are unique
+    input_paths = [str(p) for p in input_files]
+    if len(input_paths) != len(set(input_paths)):
+        raise ValueError("Duplicate input paths are not allowed")
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
     # Validate unique output paths
-    output_paths = [str(output_path) for _, output_path, _ in file_pairs]
+    output_paths = []
+    tasks = []
+    for input_file in input_files:
+        input_path = Path(input_file)
+        output_path = output_dir_path / (input_path.stem + ".br")
+        output_paths.append(str(output_path))
+        tasks.append((input_file, output_path))
+
     if len(output_paths) != len(set(output_paths)):
         raise ValueError("Duplicate output paths are not allowed")
 
-    def _compress_pair(
-        pair: Tuple[Union[str, Path], Union[str, Path], int],
+    def compress_task(
+        task: Tuple[Union[str, Path], Union[str, Path]],
     ) -> Optional[Exception]:
-        input_path, output_path, quality = pair
+        input_file, output_path = task
         try:
-            compress_json_file(input_path, output_path, quality)
+            compress_json_file(input_file, output_path, quality)
             return None
         except Exception as e:
-            logging.error(f"Failed to compress {input_path} to {output_path}: {e}")
+            logging.error(f"Failed to compress {input_file} to {output_path}: {e}")
             return e
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(_compress_pair, file_pairs))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(compress_task, tasks))
     return results
 
 
 def decompress_json_files(
-    file_pairs: List[Tuple[Union[str, Path], Union[str, Path]]],
+    input_files: Sequence[Union[str, Path]],
+    output_dir: Union[str, Path],
     max_workers: Optional[int] = None,
 ) -> List[Optional[Exception]]:
     """
-    Decompress multiple Brotli-compressed files concurrently back to JSON files.
+    Decompress multiple Brotli-compressed files to an output directory concurrently.
+
+    Output files will have the same name as input files but with .json extension.
 
     Args:
-        file_pairs: List of tuples containing (input_path, output_path)
-        max_workers: Maximum number of worker processes. If None, uses the number of CPUs.
+        input_files: List of input compressed file paths
+        output_dir: Directory to save decompressed JSON files
+        max_workers: Maximum number of worker threads. If None, uses a reasonable default.
 
     Returns:
-        List of exceptions for each file pair. None if successful, Exception if failed.
+        List of exceptions for each file. None if successful, Exception if failed.
     """
     if max_workers is not None and max_workers <= 0:
         raise ValueError("max_workers must be positive")
+    # Validate input files are unique
+    input_paths = [str(p) for p in input_files]
+    if len(input_paths) != len(set(input_paths)):
+        raise ValueError("Duplicate input paths are not allowed")
+
+    output_dir_path = Path(output_dir)
+    output_dir_path.mkdir(parents=True, exist_ok=True)
+
     # Validate unique output paths
-    output_paths = [str(output_path) for _, output_path in file_pairs]
+    output_paths = []
+    tasks = []
+    for input_file in input_files:
+        input_path = Path(input_file)
+        output_path = output_dir_path / (input_path.stem + ".json")
+        output_paths.append(str(output_path))
+        tasks.append((input_file, output_path))
+
     if len(output_paths) != len(set(output_paths)):
         raise ValueError("Duplicate output paths are not allowed")
 
-    def _decompress_pair(
-        pair: Tuple[Union[str, Path], Union[str, Path]],
+    def decompress_task(
+        task: Tuple[Union[str, Path], Union[str, Path]],
     ) -> Optional[Exception]:
-        input_path, output_path = pair
+        input_file, output_path = task
         try:
-            decompress_json_file(input_path, output_path)
+            decompress_json_file(input_file, output_path)
             return None
         except Exception as e:
-            logging.error(f"Failed to decompress {input_path} to {output_path}: {e}")
+            logging.error(f"Failed to decompress {input_file} to {output_path}: {e}")
             return e
 
-    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-        results = list(executor.map(_decompress_pair, file_pairs))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(decompress_task, tasks))
     return results
