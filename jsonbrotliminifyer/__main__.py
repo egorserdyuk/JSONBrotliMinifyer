@@ -2,6 +2,9 @@ import sys
 import json
 import argparse
 import jsonbrotliminifyer
+import os
+import errno
+import shutil
 
 
 def main() -> None:
@@ -54,8 +57,43 @@ def main() -> None:
                 sys.exit(1)
             compressed = jsonbrotliminifyer.compress_json(data, args.quality)
             if args.output_file:
-                with open(args.output_file, "wb") as f:
-                    f.write(compressed)
+                output_path_str = str(args.output_file)
+                temp_path = output_path_str + ".tmp"
+                try:
+                    with open(temp_path, "wb") as temp_f:
+                        temp_f.write(compressed)
+                    try:
+                        fd = os.open(
+                            output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                        )
+                        os.close(fd)
+                    except OSError as e:
+                        if e.errno == errno.ELOOP:
+                            raise ValueError(
+                                f"Refusing to overwrite symlink: {output_path_str}"
+                            )
+                    os.replace(temp_path, output_path_str)
+                except PermissionError:
+                    raise ValueError(
+                        f"Permission denied writing to output file: {args.output_file}"
+                    )
+                except OSError as e:
+                    if e.errno == errno.EXDEV:
+                        shutil.copy2(temp_path, output_path_str)
+                        if os.path.exists(temp_path):
+                            try:
+                                os.remove(temp_path)
+                            except Exception:
+                                pass
+                    else:
+                        if os.path.exists(temp_path):
+                            try:
+                                os.remove(temp_path)
+                            except Exception:
+                                pass
+                        raise ValueError(
+                            f"Error writing to output file: {args.output_file} - {e}"
+                        )
                 print(f"Compressed to {args.output_file}")
             else:
                 sys.stdout.buffer.write(compressed)
@@ -79,8 +117,43 @@ def main() -> None:
                 print(f"Error: {e}", file=sys.stderr)
                 sys.exit(1)
             if args.output_file:
-                with open(args.output_file, "w") as f:
-                    json.dump(data, f, indent=2)
+                output_path_str = str(args.output_file)
+                temp_path = output_path_str + ".tmp"
+                try:
+                    with open(temp_path, "w", encoding="utf-8") as temp_f:
+                        json.dump(data, temp_f, indent=2)
+                    try:
+                        fd = os.open(
+                            output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+                        )
+                        os.close(fd)
+                    except OSError as e:
+                        if e.errno == errno.ELOOP:
+                            raise ValueError(
+                                f"Refusing to overwrite symlink: {output_path_str}"
+                            )
+                    os.replace(temp_path, output_path_str)
+                except PermissionError:
+                    raise ValueError(
+                        f"Permission denied writing to output file: {args.output_file}"
+                    )
+                except OSError as e:
+                    if e.errno == errno.EXDEV:
+                        shutil.copy2(temp_path, output_path_str)
+                        if os.path.exists(temp_path):
+                            try:
+                                os.remove(temp_path)
+                            except Exception:
+                                pass
+                    else:
+                        if os.path.exists(temp_path):
+                            try:
+                                os.remove(temp_path)
+                            except Exception:
+                                pass
+                        raise ValueError(
+                            f"Error writing to output file: {args.output_file} - {e}"
+                        )
                 print(f"Decompressed to {args.output_file}")
             else:
                 json.dump(data, sys.stdout, indent=2)
