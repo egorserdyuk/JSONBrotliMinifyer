@@ -1,11 +1,25 @@
 import json
 import brotli
 import os
-import errno
-import shutil
 import logging
+import tempfile
+import concurrent.futures
 from pathlib import Path
-from typing import Any, Union, cast
+from typing import Any, Union, cast, List, Tuple, Optional
+
+
+def _validate_path(path: Union[str, Path], base_dir: Optional[str] = None) -> None:
+    """Validate that path is safe and within base_dir if specified."""
+    path_str = str(path)
+    if base_dir:
+        # Ensure path is within base_dir
+        abs_path = os.path.abspath(path_str)
+        abs_base = os.path.abspath(base_dir)
+        if not abs_path.startswith(abs_base):
+            raise ValueError(f"Path {path_str} is outside allowed directory {base_dir}")
+    # Check for dangerous path components (path traversal)
+    if ".." in path_str:
+        raise ValueError(f"Potentially dangerous path: {path_str}")
 
 
 def compress_json(json_obj: Any, quality: int = 11) -> bytes:
@@ -65,8 +79,10 @@ def compress_json_file(
 
     Raises:
         ValueError: If the input file does not exist, is not readable, contains invalid JSON,
-                   or if writing to the output file fails
+                    or if writing to the output file fails
     """
+    _validate_path(input_path)
+    _validate_path(output_path)
     try:
         with open(input_path, "r", encoding="utf-8") as f:
             json_obj = json.load(f)
@@ -82,34 +98,22 @@ def compress_json_file(
     compressed = compress_json(json_obj, quality=quality)
 
     output_path_str = str(output_path)
-    temp_path = output_path_str + ".tmp"
+    temp_fd, temp_path = tempfile.mkstemp(
+        dir=os.path.dirname(output_path_str), suffix=".tmp"
+    )
     try:
-        with open(temp_path, "wb") as temp_f:
+        with os.fdopen(temp_fd, "wb") as temp_f:
             temp_f.write(compressed)
-        try:
-            fd = os.open(output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-            os.close(fd)
-        except OSError as e:
-            if e.errno == errno.ELOOP:
-                raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
         os.replace(temp_path, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
-        if e.errno == errno.EXDEV:
-            shutil.copy2(temp_path, output_path_str)
-            if os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
-        else:
-            if os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception:
-                    pass
-            raise ValueError(f"Error writing to output file: {output_path} - {e}")
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception:
+                pass
+        raise ValueError(f"Error writing to output file: {output_path} - {e}")
 
 
 def decompress_json_file(
@@ -125,6 +129,8 @@ def decompress_json_file(
     Raises:
         ValueError: If the input file does not exist, is not readable, or if writing to the output file fails
     """
+    _validate_path(input_path)
+    _validate_path(output_path)
     try:
         with open(input_path, "rb") as f:
             compressed_bytes = f.read()
@@ -138,35 +144,95 @@ def decompress_json_file(
     json_obj = decompress_json(compressed_bytes)
 
     output_path_str = str(output_path)
-    temp_path = output_path_str + ".tmp"
+    temp_fd, temp_path = tempfile.mkstemp(
+        dir=os.path.dirname(output_path_str), suffix=".tmp"
+    )
     try:
-        with open(temp_path, "w", encoding="utf-8") as temp_f:
+        with os.fdopen(temp_fd, "w", encoding="utf-8") as temp_f:
             json.dump(json_obj, temp_f, indent=2)
-        try:
-            fd = os.open(output_path_str, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
-            os.close(fd)
-        except OSError as e:
-            if e.errno == errno.ELOOP:
-                raise ValueError(f"Refusing to overwrite symlink: {output_path_str}")
         os.replace(temp_path, output_path_str)
     except PermissionError:
         raise ValueError(f"Permission denied writing to output file: {output_path}")
     except OSError as e:
-        if e.errno == errno.EXDEV:
-            shutil.copy2(temp_path, output_path_str)
-            if os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception as cleanup_error:
-                    logging.warning(
-                        f"Failed to remove temp file {temp_path}: {cleanup_error}"
-                    )
-        else:
-            if os.path.exists(temp_path):
-                try:
-                    os.remove(temp_path)
-                except Exception as cleanup_error:
-                    logging.warning(
-                        f"Failed to remove temp file {temp_path}: {cleanup_error}"
-                    )
-            raise ValueError(f"Error writing to output file: {output_path} - {e}")
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except Exception as cleanup_error:
+                logging.warning(
+                    f"Failed to remove temp file {temp_path}: {cleanup_error}"
+                )
+        raise ValueError(f"Error writing to output file: {output_path} - {e}")
+
+
+def compress_json_files(
+    file_pairs: List[Tuple[Union[str, Path], Union[str, Path], int]],
+    max_workers: Optional[int] = None,
+) -> List[Optional[Exception]]:
+    """
+    Compress multiple JSON files concurrently using Brotli compression.
+
+    Args:
+        file_pairs: List of tuples containing (input_path, output_path, quality)
+        max_workers: Maximum number of worker processes. If None, uses the number of CPUs.
+
+    Returns:
+        List of exceptions for each file pair. None if successful, Exception if failed.
+    """
+    if max_workers is not None and max_workers <= 0:
+        raise ValueError("max_workers must be positive")
+    # Validate unique output paths
+    output_paths = [str(output_path) for _, output_path, _ in file_pairs]
+    if len(output_paths) != len(set(output_paths)):
+        raise ValueError("Duplicate output paths are not allowed")
+
+    def _compress_pair(
+        pair: Tuple[Union[str, Path], Union[str, Path], int],
+    ) -> Optional[Exception]:
+        input_path, output_path, quality = pair
+        try:
+            compress_json_file(input_path, output_path, quality)
+            return None
+        except Exception as e:
+            logging.error(f"Failed to compress {input_path} to {output_path}: {e}")
+            return e
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_compress_pair, file_pairs))
+    return results
+
+
+def decompress_json_files(
+    file_pairs: List[Tuple[Union[str, Path], Union[str, Path]]],
+    max_workers: Optional[int] = None,
+) -> List[Optional[Exception]]:
+    """
+    Decompress multiple Brotli-compressed files concurrently back to JSON files.
+
+    Args:
+        file_pairs: List of tuples containing (input_path, output_path)
+        max_workers: Maximum number of worker processes. If None, uses the number of CPUs.
+
+    Returns:
+        List of exceptions for each file pair. None if successful, Exception if failed.
+    """
+    if max_workers is not None and max_workers <= 0:
+        raise ValueError("max_workers must be positive")
+    # Validate unique output paths
+    output_paths = [str(output_path) for _, output_path in file_pairs]
+    if len(output_paths) != len(set(output_paths)):
+        raise ValueError("Duplicate output paths are not allowed")
+
+    def _decompress_pair(
+        pair: Tuple[Union[str, Path], Union[str, Path]],
+    ) -> Optional[Exception]:
+        input_path, output_path = pair
+        try:
+            decompress_json_file(input_path, output_path)
+            return None
+        except Exception as e:
+            logging.error(f"Failed to decompress {input_path} to {output_path}: {e}")
+            return e
+
+    with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(_decompress_pair, file_pairs))
+    return results
